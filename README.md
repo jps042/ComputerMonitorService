@@ -1,30 +1,35 @@
 # ComputerMonitorService
 Computer Monitor Service
 
-class HostServiceMonitor
+class StorageMonitoring
 {
     <#
         .DESCRIPTION
-        The HostServiceMonitor class retrieves information about running services on a host. It has a single constructor that takes a host name as a parameter, and a single method: GetRunningServices. The GetRunningServices method retrieves the list of running services on the host using the Win32_Service WMI class, and returns the results as an array of objects.
+        The StorageMonitoring class retrieves storage information for a list of hosts. It has a single constructor that takes an array of host names as a parameter, and a single method: GetStorageInfo. The GetStorageInfo method retrieves the storage information for each host using the Win32_LogicalDisk WMI class, and returns the results as a hashtable.
         .SYNOPSIS
-        Retrieves information about running services on a host.
-        .PARAMETER Host
-        The host name to retrieve information about running services for.
+        Retrieves storage information for a list of hosts.
+        .PARAMETER Hosts
+        An array of host names to retrieve storage information for.
         .EXAMPLE
-        $serviceMonitor = [HostServiceMonitor]::new('host1')
-        $runningServices = $serviceMonitor.GetRunningServices()
+        $storageMonitor = [StorageMonitoring]::new('host1', 'host2')
+        $storageInfo = $storageMonitor.GetStorageInfo()
     #>
-    [string]$Host
+    
+    [string[]]$Hosts
 
-    HostServiceMonitor([string]$Host)
+    StorageMonitoring([string[]]$Hosts)
     {
-        $this.Host = $Host
+        $this.Hosts = $Hosts
     }
 
-    function GetRunningServices()
+    function GetStorageInfo()
     {
-        return Get-WmiObject -Class Win32_Service -ComputerName $this.Host |
-            Where-Object { $_.State -eq 'Running' } |
-            Select-Object DisplayName, Name, StartMode, Status
+        $storageInfo = @{}
+        foreach ($host in $this.Hosts)
+        {
+            $storageInfo[$host] = Get-WmiObject -Class Win32_LogicalDisk -ComputerName $host |
+                Select-Object DeviceID, @{Name='Size';Expression={[math]::Round(($_.Size/1GB),2)}}, @{Name='FreeSpace';Expression={[math]::Round(($_.FreeSpace/1GB),2)}}, @{Name='FileSystem';Expression={$_.FileSystem}}, @{Name='VolumeName';Expression={$_.VolumeName}}, @{Name='VolumeSerialNumber';Expression={$_.VolumeSerialNumber}}
+        }
+        return $storageInfo
     }
 }
